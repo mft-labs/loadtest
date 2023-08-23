@@ -1,0 +1,49 @@
+{
+    "nofiles":100,
+    "delay":10,
+    "hosts":"192.168.29.192:25022,192.168.29.229:25022,localhost:25022",
+    "192.168.29.192:25022": {
+        "users":"sys1-user001,sys1-user002",
+        "sys1-user001": {
+            "password": "@p6u7bMWx72l"
+        },
+        "sys1-user002": {
+            "password": "R43Y@CM9b90V"
+        },
+        "files": [
+            "files/test.txt"
+        ],
+        "target":"/",
+        "active": "false"
+    },
+    "192.168.29.229:25022": {
+        "users":"sys2-user001,sys2-user002",
+        "sys2-user001": {
+            "password": "53KBQUX$2sjH"
+        },
+        "sys2-user002": {
+            "password": "Z$N#RTZe71un"
+        },
+        "files": [
+            "files/test.txt"
+        ],
+        "target":"/",
+        "active": "false"
+    },
+    "localhost:25022": {
+        "users":"user001,user002",
+        "user001": {
+            "password": "3al@GMgo!Q#R"
+        },
+        "user002": {
+            "password": "8$N3iarWw50r"
+        },
+        "files": [
+            "files/samples",
+            "files/test.txt"
+        ],
+        "target":"/",
+        "active": "true"
+    }
+
+}
