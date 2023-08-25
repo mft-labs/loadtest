@@ -6,6 +6,7 @@ import os
 import sqlite3
 import traceback
 import paramiko
+import threading
 from threading import Thread, Lock
 import sys
 lock = Lock()
@@ -108,15 +109,16 @@ def upload_file_async( lock, dbmgr, fileno, host, port, username, passwd, source
                 dbmgr.add_entry(dbmgr.connection(), fileno, host, port, username,source,"failed",traceback.format_exc())
 
 class LoadTest(object):
-    def __init__(self, conf, running_threads):
+    def __init__(self, conf, svc, running_threads):
         self.config = Config(conf).get_config()
         self.nofiles = self.config["nofiles"]
         self.testcases = self.config["testcases"].split(",")
         self.dbmgr = DbManager("loadtest")
         self.count = 0
         self.running_threads = running_threads
+        self.svc = svc
 
-    def run_test(self):
+    def prepare_test(self):
         completed = False
         dbmgr = self.dbmgr
         con = dbmgr.connection()
@@ -156,12 +158,79 @@ class LoadTest(object):
                                 if self.count > self.nofiles:
                                     return
                                 print(f'Creating new thread for {self.count}')
-                                t = Thread(target=upload_file_async, args=(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],filepath2,targetfile,))
-                                self.running_threads.append(t)
+                                #t = Thread(target=upload_file_async, args=(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],filepath2,targetfile,))
+                                #self.running_threads.append(t)
+                                self.svc.add_item(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],filepath2,targetfile)
                         except:
                             print(f'Exception raised while prepare for upload {traceback.format_exc()}')
                             dbmgr.add_entry(con, self.count,hostinfo[0], int(hostinfo[1]), user,targetfile,"upload failed",traceback.format_exc())
-            time.sleep(self.config["delay"])
+            #time.sleep(self.config["delay"])
+
+    def run_test(self):
+        print('Files ready for delivery ....')
+        self.svc.show_info()
+        print('Preparing for run the test ....')
+        self.svc.prepare_threads()
+        print('Starting process ....')
+        self.svc.start_process()
+        print('Waiting for process to complete')
+        self.svc.wait()
+
+class SftpUploadTest(object):
+    def __init__(self, thread_count):
+        self.threads = []
+        self.item_list = []
+        self.current_item = 0
+        self.thread_count = thread_count
+        self.current_item = -1
+
+    def run_process(self,list):
+        for item in list:
+            self.process(item['lock'],item['dbmgr'],item['fileno'],
+                    item['host'],item['port'],item['username'],item['passwd'],
+                    item['source'],item['target'])
+            time.sleep(0.1)
+
+    def process(self,lock, dbmgr, fileno, host, port, username, passwd, source, target):
+        print(f'Uploading file using {threading.current_thread().getName()}')
+        upload_file_async(lock, dbmgr, fileno, host, port, username, passwd, source, target)
+
+
+    def prepare_threads(self):
+        for item in self.item_list:
+            self.threads.append(Thread(target=self.run_process,args=(item,)))
+
+    def start_process(self):
+        for thread in self.threads:
+            thread.start()
+            time.sleep(1)
+
+    def wait(self):
+        for thread in self.threads:
+            thread.join()
+
+    def add_item(self, lock, dbmgr, fileno, host, port, username, passwd, source, target):
+        new_item = {}
+        new_item['lock'] = lock
+        new_item['dbmgr'] = dbmgr
+        new_item['fileno'] = fileno
+        new_item['host'] = host
+        new_item['port'] = port
+        new_item['username'] = username
+        new_item['passwd'] = passwd
+        new_item['source'] = source
+        new_item['target'] = target
+        self.current_item = self.current_item+1
+        if self.current_item > self.thread_count:
+            self.current_item = 1
+        if len(self.item_list)<self.current_item:
+            self.item_list.append([])
+        self.item_list[self.current_item-1].append(new_item)
+
+    def show_info(self):
+        for listitem in self.item_list:
+            for item in listitem:
+                print(item)
 
 if __name__ == "__main__":
     conf = 'loadtest2.json'
@@ -173,19 +242,22 @@ if __name__ == "__main__":
 
     process_status = []
     running_threads=[]
+
     config = Config(conf).get_config()
-    app = LoadTest(conf,running_threads)
+    sftptester = SftpUploadTest(config["thread_count"])
+    app = LoadTest(conf,sftptester,running_threads)
     print('Preparing for upload ...')
+    app.prepare_test()
     app.run_test()
-    print(f'Number of threads {len(running_threads)}')
-    print('Starting upload ....')
-    for t in running_threads:
-        print(f'Starting thread {t.name}')
-        t.start()
-        time.sleep(config["thread_delay"])
-    print('Waiting for upload to finish ...')
-    for t in running_threads:
-        t.join()
+#     print(f'Number of threads {len(running_threads)}')
+#     print('Starting upload ....')
+#     for t in running_threads:
+#         print(f'Starting thread {t.name}')
+#         t.start()
+#         time.sleep(config["thread_delay"])
+#     print('Waiting for upload to finish ...')
+#     for t in running_threads:
+#         t.join()
 
 
 

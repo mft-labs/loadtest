@@ -1,13 +1,14 @@
 {
-    "nofiles":5,
+    "nofiles":10,
     "delay":0.1,
     "thread_delay": 1,
+    "thread_count": 10,
     "testcases":"amfdeployer",
     "amfdeployer": {
         "host": "amfdeployer.hub4edi.dev:25022",
         "users":"ADI_TEST01",
         "ADI_TEST01": {
-            "password": "AbCdEf2023!"
+            "password": "Test@123"
         },
         "files": [
             "files/samples",
