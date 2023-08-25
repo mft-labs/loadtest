@@ -72,7 +72,7 @@ class DbManager(object):
         print('Successful Transfers')
         print('----------------------------------------------------------------------------------------------')
         for row in result:
-            print(row[0], row[1], row[2], row[3],row[4],row[5],row[6])
+            print(f'{row[0]:5d} {row[1]:20s} {row[2]:6d} {row[3]:15s} {row[4]:25s} {row[5]:20s} {row[6]:10s}')
         cursor.close()
         print('----------------------------------------------------------------------------------------------')
 
@@ -83,7 +83,7 @@ class DbManager(object):
         print('Failed Transfers')
         print('----------------------------------------------------------------------------------------------')
         for row in result:
-            print(row[0], row[1], row[2], row[3],row[4],row[5],row[6])
+            print(f'{row[0]:5d} {row[1]:20s} {row[2]:6d} {row[3]:15s} {row[4]:20s} {row[5]:20s} {row[6]:10s}')
         cursor.close()
         print('----------------------------------------------------------------------------------------------')
 

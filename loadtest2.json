@@ -8,7 +8,7 @@
         "host": "amfdeployer.hub4edi.dev:25022",
         "users":"ADI_TEST01",
         "ADI_TEST01": {
-            "password": "diVkD3sMVsG#"
+            "password": "Test@123#"
         },
         "files": [
             "files/samples",
