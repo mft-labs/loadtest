@@ -149,51 +149,51 @@ class SftpServerConnection(pysftp.Connection):
 
 
 def upload_file_async( lock, dbmgr, fileno, host, port, username, passwd,  source, target, file_format="AS IS"):
-        print(f'Uploading file item {fileno}')
-        localpath=None
-        remotepath=None
-        cnopts = pysftp.CnOpts()
-        cnopts.hostkeys = None
+    print(f'Uploading file item {fileno}')
+    localpath=None
+    remotepath=None
+    cnopts = pysftp.CnOpts()
+    cnopts.hostkeys = None
 
-        try:
-            with SftpServerConnection(host=host, port=port, username=username, password=passwd,cnopts=cnopts) as sftp:
-                dateTimeObj = datetime.now()
-                timestampStr = dateTimeObj.strftime('%d%m%Y_%H%M%S%f')
-                localpath=source
-                remotepath=target
-                arr = remotepath.split('.')
+    try:
+        with SftpServerConnection(host=host, port=port, username=username, password=passwd,cnopts=cnopts) as sftp:
+            dateTimeObj = datetime.now()
+            timestampStr = dateTimeObj.strftime('%d%m%Y_%H%M%S%f')
+            localpath=source
+            remotepath=target
+            arr = remotepath.split('.')
+            format_text = ''
+            if file_format == "AS IS":
                 format_text = ''
-                if file_format == "AS IS":
-                    format_text = ''
-                else:
-                    if file_format == "FILENO_DATE_TIME":
-                        format_text = '_'+str(fileno)+'_'+timestampStr
-                    else:
-                        if file_format == "TIMESTAMP":
-                            format_text = "_"+dateTimeObj.strftime('%Y%m%d%H%M%S%f')
-                        else:
-                            if file_format[0:7] == "RANDOM_":
-                                length = int(file_format[7:])
-                                generator = RandomString(length)
-                                format_text = "_"+generator.random_letters_digits()
-
-                if len(arr)>1:
-                    newfile = '.'.join(arr[0:-1])
-                    newfile = newfile+format_text+'.'+arr[-1]
-                else:
-                    newfile = remotepath+format_text
-                remotepath=newfile
-                print('Sending from %s to %s' %(localpath,remotepath))
-                lock.acquire()
-                sftp.put(localpath,remotepath, confirm=False)
-                lock.release()
-                dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username, remotepath,"success","success")
-        except:
-            print(f'Exception arised {traceback.format_exc()}')
-            if localpath!=None and remotepath!=None:
-                dbmgr.add_entry(dbmgr.connection(), fileno,host, port, username,remotepath,"failed",traceback.format_exc())
             else:
-                dbmgr.add_entry(dbmgr.connection(), fileno, host, port, username,source,"failed",traceback.format_exc())
+                if file_format == "FILENO_DATE_TIME":
+                    format_text = '_'+str(fileno)+'_'+timestampStr
+                else:
+                    if file_format == "TIMESTAMP":
+                        format_text = "_"+dateTimeObj.strftime('%Y%m%d%H%M%S%f')
+                    else:
+                        if file_format[0:7] == "RANDOM_":
+                            length = int(file_format[7:])
+                            generator = RandomString(length)
+                            format_text = "_"+generator.random_letters_digits()
+
+            if len(arr)>1:
+                newfile = '.'.join(arr[0:-1])
+                newfile = newfile+format_text+'.'+arr[-1]
+            else:
+                newfile = remotepath+format_text
+            remotepath=newfile
+            print('Sending from %s to %s' %(localpath,remotepath))
+            lock.acquire()
+            sftp.put(localpath,remotepath, confirm=False)
+            lock.release()
+            dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username, remotepath,"success","success")
+    except:
+        print(f'Exception arised {traceback.format_exc()}')
+        if localpath!=None and remotepath!=None:
+            dbmgr.add_entry(dbmgr.connection(), fileno,host, port, username,remotepath,"failed",traceback.format_exc())
+        else:
+            dbmgr.add_entry(dbmgr.connection(), fileno, host, port, username,source,"failed",traceback.format_exc())
 
 class LoadTest(object):
     def __init__(self, conf, svc, running_threads):
@@ -320,6 +320,9 @@ class SftpUploadTest(object):
             self.current_item = 1
         if len(self.item_list)<self.current_item:
             self.item_list.append([])
+        if len(self.item_list) == 0 :
+            self.item_list.append([])
+
         self.item_list[self.current_item-1].append(new_item)
 
     def show_info(self):
