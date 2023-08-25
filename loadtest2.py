@@ -6,7 +6,9 @@ import os
 import sqlite3
 import traceback
 import paramiko
-from threading import Thread
+from threading import Thread, Lock
+import sys
+lock = Lock()
 
 class DbManager(object):
     def __init__(self, dbname):
@@ -62,7 +64,7 @@ class SftpServerConnection(pysftp.Connection):
 
         self._sftp_live = False
         self._transport = None
-        self.banner_timeout = 200
+        self.banner_timeout = 3000
         super().__init__(*args, **kwargs)
 
     def __del__(self):
@@ -73,42 +75,46 @@ class SftpServerConnection(pysftp.Connection):
                 pass
 
 
+def upload_file_async( lock, dbmgr, fileno, host, port, username, passwd, source, target):
+        print(f'Uploading file item {fileno}')
+        localpath=None
+        remotepath=None
+        cnopts = pysftp.CnOpts()
+        cnopts.hostkeys = None
+
+        try:
+            with SftpServerConnection(host=host, port=port, username=username, password=passwd,cnopts=cnopts) as sftp:
+                dateTimeObj = datetime.now()
+                timestampStr = dateTimeObj.strftime('%d%m%Y_%H%M%S%f')
+                localpath=source
+                remotepath=target
+                arr = remotepath.split('.')
+                if len(arr)>1:
+                    newfile = '.'.join(arr[0:-1])
+                    newfile = newfile+'_'+str(fileno)+'_'+timestampStr+'.'+arr[-1]
+                else:
+                    newfile = remotepath+'_'+str(fileno)+'_'+timestampStr
+                remotepath=newfile
+                print('Sending from %s to %s' %(localpath,remotepath))
+                lock.acquire()
+                sftp.put(localpath,remotepath, confirm=False)
+                lock.release()
+                dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username, remotepath,"success","success")
+        except:
+            print(f'Exception arised {traceback.format_exc()}')
+            if localpath!=None and remotepath!=None:
+                dbmgr.add_entry(dbmgr.connection(), fileno,host, port, username,remotepath,"failed",traceback.format_exc())
+            else:
+                dbmgr.add_entry(dbmgr.connection(), fileno, host, port, username,source,"failed",traceback.format_exc())
+
 class LoadTest(object):
-    def __init__(self, conf):
+    def __init__(self, conf, running_threads):
         self.config = Config(conf).get_config()
         self.nofiles = self.config["nofiles"]
         self.testcases = self.config["testcases"].split(",")
         self.dbmgr = DbManager("loadtest")
         self.count = 0
-        #print(self.hosts)
-
-    def upload_file(self, dbmgr, fileno, host, port, username, passwd, source, target):
-        localpath=None
-        remotepath=None
-        cnopts = pysftp.CnOpts()
-        cnopts.hostkeys = None
-        try:
-            print(f'Arrived to upload file with {fileno}')
-            with SftpServerConnection(host=host, port=port, username=username, password=passwd,cnopts=cnopts) as sftp:
-                dateTimeObj = datetime.now()
-                timestampStr = dateTimeObj.strftime('%d%m%Y_%H%M%S%f')
-                localpath=source
-                remotepath=target 
-                arr = remotepath.split('.')
-                if len(arr)>1:
-                    newfile = '.'.join(arr[0:-1])
-                    newfile = newfile+'_'+timestampStr+'.'+arr[-1]
-                else:
-                    newfile = remotepath+'_'+timestampStr
-                remotepath=newfile
-                print('Sending from %s to %s' %(localpath,remotepath))
-                sftp.put(localpath,remotepath,confirm=True)
-                dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username,remotepath,"success","success")
-        except:
-            if localpath!=None and remotepath!=None:
-                dbmgr.add_entry(dbmgr.connection(), fileno,host, port, username,remotepath,"failed",traceback.format_exc())
-            else:
-                dbmgr.add_entry(dbmgr.connection(), fileno, host, port, username,source,"failed",traceback.format_exc())
+        self.running_threads = running_threads
 
     def run_test(self):
         completed = False
@@ -124,9 +130,6 @@ class LoadTest(object):
                     continue
                 print(users)
                 for user in users:
-                    #userinfo = self.config[hostinfo[0]][user]
-                    #files = self.config[hostinfo[0]]["files"]
-                    #target = self.config[hostinfo[0]]["target"]
                     userinfo = self.config[testcase][user]
                     files = self.config[testcase]["files"]
                     target = self.config[testcase]["target"]
@@ -145,7 +148,6 @@ class LoadTest(object):
                             for fileinfo in files_list:
                                 filepath2 = os.path.join(origin, fileinfo)
                                 filename = os.path.basename(filepath2).split('/')[-1]
-                                
                                 if target == '/':
                                     targetfile = target+filename
                                 else:
@@ -153,12 +155,38 @@ class LoadTest(object):
                                 self.count=self.count+1
                                 if self.count > self.nofiles:
                                     return
-                                self.upload_file(dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],filepath2,targetfile)
+                                print(f'Creating new thread for {self.count}')
+                                t = Thread(target=upload_file_async, args=(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],filepath2,targetfile,))
+                                self.running_threads.append(t)
                         except:
+                            print(f'Exception raised while prepare for upload {traceback.format_exc()}')
                             dbmgr.add_entry(con, self.count,hostinfo[0], int(hostinfo[1]), user,targetfile,"upload failed",traceback.format_exc())
             time.sleep(self.config["delay"])
 
 if __name__ == "__main__":
-    app = LoadTest("loadtest2.json")
+    conf = 'loadtest2.json'
+    if len(sys.argv) > 1:
+        conf = sys.argv[1]
+        print(f'Using custom configuration from {conf}')
+    else:
+        print(f'Using default configuration from {conf}')
+
+    process_status = []
+    running_threads=[]
+    config = Config(conf).get_config()
+    app = LoadTest(conf,running_threads)
+    print('Preparing for upload ...')
     app.run_test()
+    print(f'Number of threads {len(running_threads)}')
+    print('Starting upload ....')
+    for t in running_threads:
+        print(f'Starting thread {t.name}')
+        t.start()
+        time.sleep(config["thread_delay"])
+    print('Waiting for upload to finish ...')
+    for t in running_threads:
+        t.join()
+
+
+
 
