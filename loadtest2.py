@@ -258,8 +258,8 @@ class LoadTest(object):
             #time.sleep(self.config["delay"])
 
     def run_test(self):
-        print('Files ready for delivery ....')
-        self.svc.show_info()
+        #print('Files ready for delivery ....')
+        #self.svc.show_info()
         print('Preparing for run the test ....')
         self.svc.prepare_threads()
         print('Starting process ....')
