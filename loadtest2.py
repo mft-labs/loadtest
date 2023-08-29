@@ -189,11 +189,39 @@ def upload_file_async( lock, dbmgr, fileno, host, port, username, passwd,  sourc
             lock.release()
             dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username, remotepath,"success","success")
     except:
-        print(f'Exception arised {traceback.format_exc()}')
+        print(f'Exception arisen {traceback.format_exc()}')
         if localpath!=None and remotepath!=None:
             dbmgr.add_entry(dbmgr.connection(), fileno,host, port, username,remotepath,"failed",traceback.format_exc())
         else:
             dbmgr.add_entry(dbmgr.connection(), fileno, host, port, username,source,"failed",traceback.format_exc())
+
+def download_file_async( lock, dbmgr, fileno, host, port, username, passwd,  source, target, file_format="AS IS"):
+    print(f'Uploading file item {fileno}')
+    localpath=None
+    remotepath=None
+    cnopts = pysftp.CnOpts()
+    cnopts.hostkeys = None
+
+    try:
+        with SftpServerConnection(host=host, port=port, username=username, password=passwd,cnopts=cnopts) as sftp:
+            dateTimeObj = datetime.now()
+            timestampStr = dateTimeObj.strftime('%d%m%Y_%H%M%S%f')
+            localpath=source
+            remotepath=target
+            print('Retrieving file from %s to %s' %(remotepath,localpath))
+            lock.acquire()
+            files = sftp.listdir_attr(remotepath)
+            for f in files:
+                sftp.get(remotepath+'/'+f.filename,localpath+'/'+f.filename)
+            lock.release()
+            dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username, remotepath,"success","success")
+    except:
+        print(f'Exception arisen {traceback.format_exc()}')
+        if localpath!=None and remotepath!=None:
+            dbmgr.add_entry(dbmgr.connection(), fileno,host, port, username,remotepath,"failed",traceback.format_exc())
+        else:
+            dbmgr.add_entry(dbmgr.connection(), fileno, host, port, username,source,"failed",traceback.format_exc())
+
 
 class LoadTest(object):
     def __init__(self, conf, svc, running_threads):
@@ -224,42 +252,51 @@ class LoadTest(object):
                 print(users)
                 for user in users:
                     userinfo = self.config[testcase][user]
-                    files = self.config[testcase]["files"]
+                    mode = self.config[testcase]["mode"]
                     target = self.config[testcase]["target"]
+
                     targetfile = ''
-                    for filepath in files:
-                        try:
-                            isdir = os.path.isdir(filepath)
-                            files_list = []
-                            if isdir:
-                                origin = filepath
-                                files_list = os.listdir(filepath)
-                            else:
-                                origin = ''
-                                files_list = [filepath]
-                            
-                            for fileinfo in files_list:
-                                filepath2 = os.path.join(origin, fileinfo)
-                                filename = os.path.basename(filepath2).split('/')[-1]
-                                if target == '/':
-                                    targetfile = target+filename
+                    if mode == 'upload':
+                        files = self.config[testcase]["files"]
+                        for filepath in files:
+                            try:
+                                isdir = os.path.isdir(filepath)
+                                files_list = []
+                                if isdir:
+                                    origin = filepath
+                                    files_list = os.listdir(filepath)
                                 else:
-                                    targetfile = target+'/'+filename
-                                self.count=self.count+1
-                                if self.count > self.nofiles:
-                                    return
-                                print(f'Creating new thread for {self.count}')
-                                #t = Thread(target=upload_file_async, args=(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],filepath2,targetfile,))
-                                #self.running_threads.append(t)
-                                self.svc.add_item(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],filepath2,targetfile,file_format)
+                                    origin = ''
+                                    files_list = [filepath]
+
+                                for fileinfo in files_list:
+                                    filepath2 = os.path.join(origin, fileinfo)
+                                    filename = os.path.basename(filepath2).split('/')[-1]
+                                    if target == '/':
+                                        targetfile = target+filename
+                                    else:
+                                        targetfile = target+'/'+filename
+                                    self.count=self.count+1
+                                    if self.count > self.nofiles:
+                                        return
+                                    print(f'Creating new thread for {self.count}')
+                                    #t = Thread(target=upload_file_async, args=(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],filepath2,targetfile,))
+                                    #self.running_threads.append(t)
+                                    self.svc.add_item(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],mode,filepath2,targetfile,file_format)
+                            except:
+                                print(f'Exception raised while prepare for upload {traceback.format_exc()}')
+                                dbmgr.add_entry(con, self.count,hostinfo[0], int(hostinfo[1]), user,targetfile,"upload failed",traceback.format_exc())
+                    else:
+                        downloadpath = self.config[testcase]["downloadpath"]
+                        try:
+                            self.svc.add_item(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],mode,downloadpath,target,"AS IS")
                         except:
-                            print(f'Exception raised while prepare for upload {traceback.format_exc()}')
-                            dbmgr.add_entry(con, self.count,hostinfo[0], int(hostinfo[1]), user,targetfile,"upload failed",traceback.format_exc())
+                            print(f'Exception raised while prepare for download {traceback.format_exc()}')
+                            dbmgr.add_entry(con, self.count,hostinfo[0], int(hostinfo[1]), user,target,"download failed",traceback.format_exc())
+
             #time.sleep(self.config["delay"])
 
     def run_test(self):
-        #print('Files ready for delivery ....')
-        #self.svc.show_info()
         print('Preparing for run the test ....')
         self.svc.prepare_threads()
         print('Starting process ....')
@@ -281,13 +318,17 @@ class SftpUploadTest(object):
     def run_process(self,list):
         for item in list:
             self.process(item['lock'],item['dbmgr'],item['fileno'],
-                    item['host'],item['port'],item['username'],item['passwd'],
+                    item['host'],item['port'],item['username'],item['passwd'],item["mode"],
                     item['source'],item['target'],item['file_format'])
             time.sleep(0.1)
 
-    def process(self,lock, dbmgr, fileno, host, port, username, passwd, source, target,file_format="AS IS"):
+    def process(self,lock, dbmgr, fileno, host, port, username, passwd, mode,source, target,file_format="AS IS"):
         print(f'Uploading file using {threading.current_thread().getName()}')
-        upload_file_async(lock, dbmgr, fileno, host, port, username, passwd, source, target,file_format)
+        if mode == "upload":
+            upload_file_async(lock, dbmgr, fileno, host, port, username, passwd, source, target,file_format)
+        else:
+            download_file_async(lock, dbmgr, fileno, host, port, username, passwd, source, target,file_format)
+
 
 
     def prepare_threads(self):
@@ -303,7 +344,7 @@ class SftpUploadTest(object):
         for thread in self.threads:
             thread.join()
 
-    def add_item(self, lock, dbmgr, fileno, host, port, username, passwd, source, target, file_format="AS IS"):
+    def add_item(self, lock, dbmgr, fileno, host, port, username, passwd, mode, source, target, file_format="AS IS"):
         new_item = {}
         new_item['lock'] = lock
         new_item['dbmgr'] = dbmgr
@@ -312,6 +353,7 @@ class SftpUploadTest(object):
         new_item['port'] = port
         new_item['username'] = username
         new_item['passwd'] = passwd
+        new_item["mode"] = mode
         new_item['source'] = source
         new_item['target'] = target
         new_item["file_format"] = file_format
