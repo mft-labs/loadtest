@@ -211,6 +211,7 @@ def download_file_async( lock, dbmgr, fileno, host, port, username, passwd,  sou
             print('Retrieving file from %s to %s' %(remotepath,localpath))
             lock.acquire()
             files = sftp.listdir_attr(remotepath)
+            print(f'No. of files available for download: {len(files)}')
             for f in files:
                 sftp.get(remotepath+'/'+f.filename,localpath+'/'+f.filename)
             lock.release()
@@ -287,6 +288,9 @@ class LoadTest(object):
                                 print(f'Exception raised while prepare for upload {traceback.format_exc()}')
                                 dbmgr.add_entry(con, self.count,hostinfo[0], int(hostinfo[1]), user,targetfile,"upload failed",traceback.format_exc())
                     else:
+                        self.count=self.count+1
+                        if self.count > self.nofiles:
+                            return
                         downloadpath = self.config[testcase]["downloadpath"]
                         try:
                             self.svc.add_item(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],mode,downloadpath,target,"AS IS")
