@@ -148,7 +148,7 @@ class SftpServerConnection(pysftp.Connection):
                 pass
 
 
-def upload_file_async( lock, dbmgr, fileno, host, port, username, passwd,  source, target, file_format="AS IS"):
+def upload_file_async( lock, dbmgr, fileno, host, port, username, auth_type, creds, priv_key_pass,  source, target, file_format="AS IS"):
     print(f'Uploading file item {fileno}')
     localpath=None
     remotepath=None
@@ -156,38 +156,49 @@ def upload_file_async( lock, dbmgr, fileno, host, port, username, passwd,  sourc
     cnopts.hostkeys = None
 
     try:
-        with SftpServerConnection(host=host, port=port, username=username, password=passwd,cnopts=cnopts) as sftp:
-            dateTimeObj = datetime.now()
-            timestampStr = dateTimeObj.strftime('%d%m%Y_%H%M%S%f')
-            localpath=source
-            remotepath=target
-            arr = remotepath.split('.')
+        dateTimeObj = datetime.now()
+        timestampStr = dateTimeObj.strftime('%d%m%Y_%H%M%S%f')
+        localpath=source
+        remotepath=target
+        arr = remotepath.split('.')
+        format_text = ''
+        if file_format == "AS IS":
             format_text = ''
-            if file_format == "AS IS":
-                format_text = ''
+        else:
+            if file_format == "FILENO_DATE_TIME":
+                format_text = '_'+str(fileno)+'_'+timestampStr
             else:
-                if file_format == "FILENO_DATE_TIME":
-                    format_text = '_'+str(fileno)+'_'+timestampStr
+                if file_format == "TIMESTAMP":
+                    format_text = "_"+dateTimeObj.strftime('%Y%m%d%H%M%S%f')
                 else:
-                    if file_format == "TIMESTAMP":
-                        format_text = "_"+dateTimeObj.strftime('%Y%m%d%H%M%S%f')
-                    else:
-                        if file_format[0:7] == "RANDOM_":
-                            length = int(file_format[7:])
-                            generator = RandomString(length)
-                            format_text = "_"+generator.random_letters_digits()
+                    if file_format[0:7] == "RANDOM_":
+                        length = int(file_format[7:])
+                        generator = RandomString(length)
+                        format_text = "_"+generator.random_letters_digits()
 
-            if len(arr)>1:
-                newfile = '.'.join(arr[0:-1])
-                newfile = newfile+format_text+'.'+arr[-1]
-            else:
-                newfile = remotepath+format_text
-            remotepath=newfile
-            print('Sending from %s to %s' %(localpath,remotepath))
-            lock.acquire()
-            sftp.put(localpath,remotepath, confirm=False)
-            lock.release()
-            dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username, remotepath,"success","success")
+        if len(arr)>1:
+            newfile = '.'.join(arr[0:-1])
+            newfile = newfile+format_text+'.'+arr[-1]
+        else:
+            newfile = remotepath+format_text
+        remotepath=newfile
+        print('Sending from %s to %s' %(localpath,remotepath))
+        if auth_type == 'password':
+            with SftpServerConnection(host=host, port=port, username=username, password=creds, cnopts=cnopts) as sftp:
+                lock.acquire()
+                sftp.put(localpath,remotepath, confirm=False)
+                lock.release()
+                dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username, remotepath,"success","success")
+        else:
+            priv_key_pass1 = None
+            if priv_key_pass != "":
+                priv_key_pass1 = priv_key_pass
+            with SftpServerConnection(host=host, port=port, username=username, private_key=creds, private_key_pass=priv_key_pass1,cnopts=cnopts) as sftp:
+                lock.acquire()
+                sftp.put(localpath,remotepath, confirm=False)
+                lock.release()
+                dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username, remotepath,"success","success")
+
     except:
         print(f'Exception arisen {traceback.format_exc()}')
         if localpath!=None and remotepath!=None:
@@ -195,27 +206,41 @@ def upload_file_async( lock, dbmgr, fileno, host, port, username, passwd,  sourc
         else:
             dbmgr.add_entry(dbmgr.connection(), fileno, host, port, username,source,"failed",traceback.format_exc())
 
-def download_file_async( lock, dbmgr, fileno, host, port, username, passwd,  source, target, file_format="AS IS"):
-    print(f'Uploading file item {fileno}')
+def download_file_async( lock, dbmgr, fileno, host, port, username, auth_type, creds, priv_key_pass,  source, target, file_format="AS IS"):
+    print(f'Downloading file item {fileno}')
     localpath=None
     remotepath=None
     cnopts = pysftp.CnOpts()
     cnopts.hostkeys = None
-
+    dateTimeObj = datetime.now()
+    timestampStr = dateTimeObj.strftime('%d%m%Y_%H%M%S%f')
+    localpath=source
+    remotepath=target
+    print('Retrieving file from %s to %s' %(remotepath,localpath))
     try:
-        with SftpServerConnection(host=host, port=port, username=username, password=passwd,cnopts=cnopts) as sftp:
-            dateTimeObj = datetime.now()
-            timestampStr = dateTimeObj.strftime('%d%m%Y_%H%M%S%f')
-            localpath=source
-            remotepath=target
-            print('Retrieving file from %s to %s' %(remotepath,localpath))
-            lock.acquire()
-            files = sftp.listdir_attr(remotepath)
-            print(f'No. of files available for download: {len(files)}')
-            for f in files:
-                sftp.get(remotepath+'/'+f.filename,localpath+'/'+f.filename)
-            lock.release()
-            dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username, remotepath,"success","success")
+        if auth_type == 'password':
+            with SftpServerConnection(host=host, port=port, username=username, password=creds,cnopts=cnopts) as sftp:
+                lock.acquire()
+                files = sftp.listdir_attr(remotepath)
+                print(f'No. of files available for download: {len(files)}')
+                for f in files:
+                    sftp.get(remotepath+'/'+f.filename,localpath+'/'+f.filename)
+                lock.release()
+                dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username, remotepath,"success","success")
+        else:
+            priv_key_pass1 = None
+            if priv_key_pass != "":
+                priv_key_pass1 = priv_key_pass
+            with SftpServerConnection(host=host, port=port, username=username, private_key=creds,private_key_pass=priv_key_pass1,cnopts=cnopts) as sftp:
+                lock.acquire()
+                files = sftp.listdir_attr(remotepath)
+                print(f'No. of files available for download: {len(files)}')
+                for f in files:
+                    if(sftp.exists(remotepath+'/'+f.filename)):
+                        sftp.get(remotepath+'/'+f.filename,localpath+'/'+f.filename)
+                        sftp.remove(remotepath+'/'+f.filename)
+                lock.release()
+                dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username, remotepath,"success","success")
     except:
         print(f'Exception arisen {traceback.format_exc()}')
         if localpath!=None and remotepath!=None:
@@ -253,6 +278,11 @@ class LoadTest(object):
                 print(users)
                 for user in users:
                     userinfo = self.config[testcase][user]
+                    auth_type = userinfo["auth_type"]
+                    creds = userinfo[auth_type]
+                    priv_key_pass=""
+                    if 'priv_key_pass' in userinfo:
+                        priv_key_pass = userinfo['priv_key_pass']
                     mode = self.config[testcase]["mode"]
                     target = self.config[testcase]["target"]
 
@@ -283,20 +313,20 @@ class LoadTest(object):
                                     print(f'Creating new thread for {self.count}')
                                     #t = Thread(target=upload_file_async, args=(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],filepath2,targetfile,))
                                     #self.running_threads.append(t)
-                                    self.svc.add_item(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],mode,filepath2,targetfile,file_format)
+                                    self.svc.add_item(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,auth_type,creds,priv_key_pass,mode,filepath2,targetfile,file_format)
                             except:
                                 print(f'Exception raised while prepare for upload {traceback.format_exc()}')
                                 dbmgr.add_entry(con, self.count,hostinfo[0], int(hostinfo[1]), user,targetfile,"upload failed",traceback.format_exc())
                     else:
-                        self.count=self.count+1
-                        if self.count > self.nofiles:
-                            return
+                        self.count = self.count+1
                         downloadpath = self.config[testcase]["downloadpath"]
                         try:
-                            self.svc.add_item(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,userinfo["password"],mode,downloadpath,target,"AS IS")
+                            self.svc.add_item(lock, dbmgr, self.count,hostinfo[0],int(hostinfo[1]),user,auth_type,creds,priv_key_pass,mode,downloadpath,target,"AS IS")
                         except:
                             print(f'Exception raised while prepare for download {traceback.format_exc()}')
                             dbmgr.add_entry(con, self.count,hostinfo[0], int(hostinfo[1]), user,target,"download failed",traceback.format_exc())
+                        finally:
+                            return
 
             #time.sleep(self.config["delay"])
 
@@ -322,16 +352,16 @@ class SftpUploadTest(object):
     def run_process(self,list):
         for item in list:
             self.process(item['lock'],item['dbmgr'],item['fileno'],
-                    item['host'],item['port'],item['username'],item['passwd'],item["mode"],
+                    item['host'],item['port'],item['username'],item['auth_type'],item['creds'],item['priv_key_pass'],item["mode"],
                     item['source'],item['target'],item['file_format'])
             time.sleep(0.1)
 
-    def process(self,lock, dbmgr, fileno, host, port, username, passwd, mode,source, target,file_format="AS IS"):
+    def process(self,lock, dbmgr, fileno, host, port, username, auth_type, creds, priv_key_pass,mode,source, target,file_format="AS IS"):
         print(f'Uploading file using {threading.current_thread().getName()}')
         if mode == "upload":
-            upload_file_async(lock, dbmgr, fileno, host, port, username, passwd, source, target,file_format)
+            upload_file_async(lock, dbmgr, fileno, host, port, username, auth_type,creds,priv_key_pass, source, target,file_format)
         else:
-            download_file_async(lock, dbmgr, fileno, host, port, username, passwd, source, target,file_format)
+            download_file_async(lock, dbmgr, fileno, host, port, username, auth_type, creds, priv_key_pass,source, target,file_format)
 
 
 
@@ -348,7 +378,7 @@ class SftpUploadTest(object):
         for thread in self.threads:
             thread.join()
 
-    def add_item(self, lock, dbmgr, fileno, host, port, username, passwd, mode, source, target, file_format="AS IS"):
+    def add_item(self, lock, dbmgr, fileno, host, port, username, auth_type, creds, priv_key_pass, mode, source, target, file_format="AS IS"):
         new_item = {}
         new_item['lock'] = lock
         new_item['dbmgr'] = dbmgr
@@ -356,7 +386,9 @@ class SftpUploadTest(object):
         new_item['host'] = host
         new_item['port'] = port
         new_item['username'] = username
-        new_item['passwd'] = passwd
+        new_item['auth_type'] = auth_type
+        new_item['creds'] = creds
+        new_item['priv_key_pass'] = priv_key_pass
         new_item["mode"] = mode
         new_item['source'] = source
         new_item['target'] = target

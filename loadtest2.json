@@ -3,12 +3,13 @@
     "delay":0.25,
     "thread_delay": 1,
     "thread_count": 10,
-    "testcases":"amfdeployer,amfdeployer2",
+    "testcases":"amfdeployer2",
     "amfdeployer": {
         "host": "localhost:25022",
         "users":"user002",
         "mode": "upload",
         "user002": {
+            "auth_type": "password",
             "password": "@$P71$crFUEz"
         },
         "files": [
@@ -24,7 +25,9 @@
         "users":"user003",
         "mode": "download",
         "user003": {
-            "password": "38BROAwW$E!M"
+            "auth_type": "priv_key",
+            "priv_key": "user003_priv.key",
+            "priv_key_pass": ""
         },
         "downloadpath": "downloads",
         "target":"/Inbox",
