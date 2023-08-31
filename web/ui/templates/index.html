@@ -10,7 +10,7 @@
 {% for filename in conf_list %}
     <div class="row confitem">
         <div class="col-md-3">
-            <a href="/run-test?conf={{filename}}">{{filename}}</a>
+            <a href="{% url 'run_test' %}?conf={{filename}}">{{filename}}</a>
         </div>
         <div class="col-md-9">
             &nbsp;

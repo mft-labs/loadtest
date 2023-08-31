@@ -1,6 +1,6 @@
 from django.shortcuts import render
 import glob
-from ui.loadtest2 import run_manager
+from ui import loadtest2
 import time
 from ui.models import Tests
 # Create your views here.
@@ -11,9 +11,10 @@ def home(request):
     return render(request,'index.html',{'conf_list':config_files})
 
 def run_test(request):
+    print('Arrived to run_test')
     conf = request.GET.get('conf','')
-    result = run_manager(conf)
-    time.sleep(2)
+    result = loadtest2.run_manager(conf)
+    time.sleep(5)
     new_entity = Tests(run_time=result, log_file = f'loadtest_{result}.log',
                         db_file= f'loadtest_{result}.db')
     new_entity.save()

@@ -451,14 +451,15 @@ class SftpUploadTest(object):
                 logger.info(item)
 
 def run_manager(conf):
+    print('Running Manager')
     dateTimeObj2 = datetime.now()
     log_suffix = dateTimeObj2.strftime('%d%m%Y_%H%M%S%f')
-    logger = logging.getLogger(__name__)
+    logger2 = logging.getLogger(f'runmanager_{log_suffix}')
     extra = {'conf': conf}
     #LOG_FORMAT = '%(asctime)s %(conf)-20s %(lineno)s:: %(message)s'
     LOG_FORMAT = "%(asctime)s-%(levelname)s-%(name)s::%(module)s|%(lineno)s:: %(message)s"
     logging.basicConfig(filename=f'loadtest_{log_suffix}.log', format=LOG_FORMAT, encoding='utf-8', level=logging.INFO)
-    logger = logging.LoggerAdapter(logger, extra)
+    logger = logging.LoggerAdapter(logger2, extra)
     logger.info(f'Running application using {conf} ...')
     process_status = []
     running_threads = []
@@ -469,6 +470,8 @@ def run_manager(conf):
     app.prepare_test()
     app.run_test()
     app.generate_report()
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
     return log_suffix
 
 
