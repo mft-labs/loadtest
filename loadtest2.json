@@ -1,9 +1,9 @@
 {
-    "nofiles":20,
+    "nofiles":5,
     "delay":0.25,
     "thread_delay": 1,
     "thread_count": 10,
-    "testcases":"amfdeployer2",
+    "testcases":"amfdeployer",
     "amfdeployer": {
         "host": "localhost:25022",
         "users":"user002",
