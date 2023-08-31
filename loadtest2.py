@@ -22,7 +22,7 @@ if len(sys.argv) > 1:
 extra = {'conf': conf}
 # LOG_FORMAT = '%(asctime)s %(conf)-20s  %(message)s'
 LOG_FORMAT = "%(asctime)s-%(levelname)s-%(name)s::%(module)s|%(lineno)s:: %(message)s"
-logging.basicConfig(filename=f'loadtest_{log_suffix}.log', format=LOG_FORMAT, encoding='utf-8', level=logging.DEBUG)
+logging.basicConfig(filename=f'loadtest_{log_suffix}.log', format=LOG_FORMAT, encoding='utf-8', level=logging.INFO)
 logger = logging.LoggerAdapter(logger, extra)
 
 class RandomString(object):
@@ -242,7 +242,7 @@ def download_file_async( logger, lock, dbmgr, fileno, host, port, username, auth
                         if(sftp.exists(file_to_download)):
                             logger.info(f'Downloading file {file_to_download}' )
                             sftp.get(file_to_download,localpath+'/'+f.filename)
-                            logger.info(f'Removing file {file_to_download}')
+                            logger.info(f'Removing file from sftp server {file_to_download}')
                             sftp.remove(file_to_download)
                     except:
                         logger.warning(f'Exception raised while downloading {file_to_download} {traceback.format_exc()}')
@@ -262,7 +262,7 @@ def download_file_async( logger, lock, dbmgr, fileno, host, port, username, auth
                         if(sftp.exists(file_to_download)):
                             logger.info(f'Downloading file {file_to_download}' )
                             sftp.get(file_to_download,localpath+'/'+f.filename)
-                            logger.info(f'Removing file {file_to_download}')
+                            logger.info(f'Removing file from sftp server {file_to_download}')
                             sftp.remove(file_to_download)
                     except:
                         logger.warning(f'Exception raised while downloading {file_to_download} {traceback.format_exc()}')
@@ -389,10 +389,10 @@ class SftpUploadTest(object):
     def process(self,lock, dbmgr, fileno, host, port, username, auth_type, creds, priv_key_pass,mode,source, target,file_format="AS IS"):
         logger.info(f'Uploading file using {threading.current_thread().getName()}')
         if mode == "upload":
-            logger.info('Uploading file to {host} {port} {username} {source} using {auth_type}')
+            logger.info(f'Uploading file to {host} {port} {username} {source} using {auth_type}')
             upload_file_async(self.logger,lock, dbmgr, fileno, host, port, username, auth_type,creds,priv_key_pass, source, target,file_format)
         else:
-            logger.info('Downloading files from {host} {port} {username} {source} using {auth_type}')
+            logger.info(f'Downloading files from {host} {port} {username} {source} using {auth_type}')
             download_file_async(self.logger, lock, dbmgr, fileno, host, port, username, auth_type, creds, priv_key_pass,source, target,file_format)
 
     def prepare_threads(self):

@@ -3,7 +3,7 @@
     "delay":0.25,
     "thread_delay": 1,
     "thread_count": 10,
-    "testcases":"amfdeployer",
+    "testcases":"amfdeployer2",
     "amfdeployer": {
         "host": "localhost:25022",
         "users":"user002",
