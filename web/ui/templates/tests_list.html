@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+<div class="row confitem2">
+    <div class="col-md-4">
+        Time Stamp
+    </div>
+    <div class="col-md-4">
+        Log File
+    </div>
+    <div class="col-md-4">
+        DB File
+    </div>
+</div>
+<hr/>
+{% for testinfo in entries %}
+<div class="row confitem2">
+    <div class="col-md-4">
+        {{testinfo.run_time}}
+    </div>
+    <div class="col-md-4">
+        <a href="/show-log?logfile={{testinfo.log_file}}">{{testinfo.log_file}}</a>
+    </div>
+    <div class="col-md-4">
+        {{testinfo.db_file}}
+    </div>
+</div>
+{% endfor %}
+</div>
+{% endblock %}

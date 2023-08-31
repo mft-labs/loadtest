@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+
+{% for filename in log_list %}
+    <div class="row confitem">
+        <div class="col-md-3">
+            <a href="/show-log?logfile={{filename}}">{{filename}}</a>
+        </div>
+        <div class="col-md-9">
+            &nbsp;
+        </div>
+    </div>
+{% endfor %}
+</div>
+{% endblock %}
