@@ -13,17 +13,21 @@ import string
 import random
 lock = Lock()
 import logging
-dateTimeObj2 = datetime.now()
-log_suffix = dateTimeObj2.strftime('%d%m%Y_%H%M%S%f')
 conf = 'loadtest2.json'
-logger = logging.getLogger(__name__)
 if len(sys.argv) > 1:
     conf = sys.argv[1]
+
+dateTimeObj2 = datetime.now()
+log_suffix = dateTimeObj2.strftime('%d%m%Y_%H%M%S%f')
+logger = logging.getLogger(__name__)
 extra = {'conf': conf}
-# LOG_FORMAT = '%(asctime)s %(conf)-20s  %(message)s'
+#LOG_FORMAT = '%(asctime)s %(conf)-20s %(lineno)s:: %(message)s'
 LOG_FORMAT = "%(asctime)s-%(levelname)s-%(name)s::%(module)s|%(lineno)s:: %(message)s"
 logging.basicConfig(filename=f'loadtest_{log_suffix}.log', format=LOG_FORMAT, encoding='utf-8', level=logging.INFO)
 logger = logging.LoggerAdapter(logger, extra)
+
+
+
 
 class RandomString(object):
     def __init__(self, n):
@@ -51,12 +55,17 @@ class RandomString(object):
 
 
 class DbManager(object):
-    def __init__(self, dbname):
+    def __init__(self, logger, dbname,add_timestamp=True):
+        self.logger = logger
         ts = str(int(time.time() * 1000))
         dateTimeObj = datetime.now()
         timestampStr = dateTimeObj.strftime('%d%m%Y_%H%M%S%f')
-        self.con = sqlite3.connect(f"{dbname}_{timestampStr}.db",check_same_thread=False)
-        self.initialize()
+        if add_timestamp:
+            self.con = sqlite3.connect(f"{dbname}_{timestampStr}.db",check_same_thread=False)
+            self.initialize()
+        else:
+            self.con = sqlite3.connect(f"{dbname}",check_same_thread=False)
+
 
     def initialize(self):
         cur = self.con.cursor()
@@ -81,38 +90,38 @@ class DbManager(object):
         cursor = self.con.cursor()
         cursor.execute('''SELECT fileno,host, port, username, filename,timestamp, status, notes from file_upload where status = 'success' order by status desc  ''')
         result = cursor.fetchall()
-        print('Successful Transfers')
-        print('----------------------------------------------------------------------------------------------')
+        self.logger.info('Successful Transfers')
+        self.logger.info('----------------------------------------------------------------------------------------------')
         for row in result:
-            print(f'{row[0]:5d} {row[1]:20s} {row[2]:6d} {row[3]:15s} {row[4]:25s} {row[5]:20s} {row[6]:10s}')
+            self.logger.info(f'{row[0]:5d} {row[1]:20s} {row[2]:6d} {row[3]:15s} {row[4]:25s} {row[5]:20s} {row[6]:10s}')
         cursor.close()
-        print('----------------------------------------------------------------------------------------------')
+        self.logger.info('----------------------------------------------------------------------------------------------')
 
     def retrieve_failure_data(self):
         cursor = self.con.cursor()
         cursor.execute('''SELECT fileno,host, port, username, filename,timestamp, status, notes from file_upload where status = 'failed' order by status desc  ''')
         result = cursor.fetchall()
-        print('Failed Transfers')
-        print('----------------------------------------------------------------------------------------------')
+        self.logger.info('Failed Transfers')
+        self.logger.info('----------------------------------------------------------------------------------------------')
         for row in result:
-            print(f'{row[0]:5d} {row[1]:20s} {row[2]:6d} {row[3]:15s} {row[4]:20s} {row[5]:20s} {row[6]:10s}')
+            self.logger.info(f'{row[0]:5d} {row[1]:20s} {row[2]:6d} {row[3]:15s} {row[4]:20s} {row[5]:20s} {row[6]:10s}')
         cursor.close()
-        print('----------------------------------------------------------------------------------------------')
+        self.logger.info('----------------------------------------------------------------------------------------------')
 
     def retrieve_failure_count(self):
         cursor = self.con.cursor()
         cursor.execute('''SELECT count(*) from file_upload where status = 'failed' order by status desc  ''')
         result = cursor.fetchone()
-        print('')
-        print(f'Failed Transfers count {result[0]}')
+        self.logger.info('')
+        self.logger.info(f'Failed Transfers count {result[0]}')
         cursor.close()
 
     def retrieve_successful_count(self):
         cursor = self.con.cursor()
         cursor.execute('''SELECT count(*) from file_upload where status = 'success' order by status desc  ''')
         result = cursor.fetchone()
-        print('')
-        print(f'Successful Transfers count {result[0]}')
+        self.logger.info('')
+        self.logger.info(f'Successful Transfers count {result[0]}')
         cursor.close()
 
     def retrieve_data(self):
@@ -210,7 +219,6 @@ def upload_file_async( logger, lock, dbmgr, fileno, host, port, username, auth_t
                 sftp.put(localpath,remotepath, confirm=False)
                 lock.release()
                 dbmgr.add_entry(dbmgr.connection(),fileno,host, port, username, remotepath,"success","success")
-
     except:
         logger.warning(f'Exception arisen {traceback.format_exc()}')
         if localpath!=None and remotepath!=None:
@@ -228,7 +236,7 @@ def download_file_async( logger, lock, dbmgr, fileno, host, port, username, auth
     timestampStr = dateTimeObj.strftime('%d%m%Y_%H%M%S%f')
     localpath=source
     remotepath=target
-    print('Retrieving file from %s to %s' %(remotepath,localpath))
+    logger.info('Retrieving file from %s to %s' %(remotepath,localpath))
     try:
         if auth_type == 'password':
             with SftpServerConnection(host=host, port=port, username=username, password=creds,cnopts=cnopts) as sftp:
@@ -277,11 +285,12 @@ def download_file_async( logger, lock, dbmgr, fileno, host, port, username, auth
 
 
 class LoadTest(object):
-    def __init__(self, conf, svc, running_threads):
+    def __init__(self, logger,conf, svc, running_threads):
         self.config = Config(conf).get_config()
         self.nofiles = self.config["nofiles"]
         self.testcases = self.config["testcases"].split(",")
-        self.dbmgr = DbManager("loadtest")
+        self.logger = logger
+        self.dbmgr = DbManager(logger, "loadtest")
         self.file_format  = "AS IS"
         self.count = 0
         self.running_threads = running_threads
@@ -453,7 +462,7 @@ if __name__ == "__main__":
 
     config = Config(conf).get_config()
     sftptester = SftpUploadTest(logger, config["thread_count"])
-    app = LoadTest(conf,sftptester,running_threads)
+    app = LoadTest(logger, conf,sftptester,running_threads)
     logger.debug('Preparing for upload/download files ...')
     app.prepare_test()
     app.run_test()
