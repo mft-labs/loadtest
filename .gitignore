@@ -160,3 +160,6 @@ cython_debug/
 #.idea/
 *.db
 notes*
+vmware.txt
+downloads
+user003_priv.key

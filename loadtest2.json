@@ -1,14 +1,16 @@
 {
-    "nofiles":10,
-    "delay":0.1,
+    "nofiles":5,
+    "delay":0.25,
     "thread_delay": 1,
     "thread_count": 10,
-    "testcases":"amfdeployer",
+    "testcases":"amfdeployer2",
     "amfdeployer": {
-        "host": "amfdeployer.hub4edi.dev:25022",
-        "users":"ADI_TEST01",
-        "ADI_TEST01": {
-            "password": "Test@123#"
+        "host": "localhost:25022",
+        "users":"user002",
+        "mode": "upload",
+        "user002": {
+            "auth_type": "password",
+            "password": "@$P71$crFUEz"
         },
         "files": [
             "files/samples",
@@ -16,6 +18,19 @@
         ],
         "file_format": "RANDOM_10",
         "target":"/",
+        "active": "true"
+    },
+    "amfdeployer2": {
+        "host": "localhost:25022",
+        "users":"user003",
+        "mode": "download",
+        "user003": {
+            "auth_type": "priv_key",
+            "priv_key": "user003_priv.key",
+            "priv_key_pass": ""
+        },
+        "downloadpath": "downloads",
+        "target":"/Inbox",
         "active": "true"
     }
 }
