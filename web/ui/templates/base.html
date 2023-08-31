@@ -1,0 +1,61 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SFTP Load Test</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <link rel="stylesheet" href="{% static 'bootstrap/bootstrap.min.css' %}">
+
+</head>
+<body>
+{% block header %}
+<header>
+<h1>SFTP Load Tester</h1>
+<hr/>
+</header>
+{% endblock %}
+<div id="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2 ">
+                <nav class="navbar bg-light ">
+                    <div class="container-fluid ">
+                        <!-- Links -->
+                        <ul class="navbar-nav leftnav">
+                            <li class="nav-item">
+                                <a class="nav-link" href="/">Run Test</a>
+                            </li>
+                            <!--<li class="nav-item">
+                                <a class="nav-link" href="/get-log-files">View  Log</a>
+                            </li>-->
+                            <li class="nav-item">
+                                <a class="nav-link" href="/show-runs">Show Tests</a>
+                            </li>
+                        </ul>
+                    </div>
+
+                </nav>
+            </div>
+            <div class="col-md-9">
+{% block content %}
+{% endblock %}
+                </div>
+            <div class="col-md-1 bg-light rightnav">
+                Third column
+            </div>
+        </div>
+    </div>
+</div>
+{% block footer %}
+
+<footer>
+    <hr/>
+    <p>&copy; 2023. All rights are reserved</p>
+</footer>
+{% endblock %}
+<script src="{% static 'bootstrap/bootstrap.min.js'%}"></script>
+</body>
+</html>
